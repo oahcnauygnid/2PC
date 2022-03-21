@@ -5,7 +5,7 @@ Created by dingyc.
 
 #include<string>
 #include<iostream>
-#include "SEAL-3.7/seal/seal.h"
+#include "seal/seal.h"
 
 #define MAX_LEN 4096
 

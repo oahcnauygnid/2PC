@@ -5,9 +5,12 @@
             "label": "C/C++: g++-8 生成活动文件",
             "command": "/usr/bin/g++-8",
             "args": [
+                "-std=c++17",
                 "-fdiagnostics-color=always",
                 "-g",
                 "${file}",
+                "-L'/usr/local/lib'",
+                "-lseal-3.7",
                 "-o",
                 "${workspaceRoot}/bin/${fileBasenameNoExtension}"
             ],
