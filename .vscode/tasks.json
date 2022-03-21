@@ -6,11 +6,12 @@
             "command": "/usr/bin/g++-8",
             "args": [
                 "-std=c++17",
-                "-fdiagnostics-color=always",
+                "-fconcepts",
                 "-g",
                 "${file}",
                 "-L'/usr/local/lib'",
                 "-lseal-3.7",
+                "-lpthread",
                 "-o",
                 "${workspaceRoot}/bin/${fileBasenameNoExtension}"
             ],
