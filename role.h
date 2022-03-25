@@ -4,29 +4,30 @@
 #include<iostream>
 using namespace std;
 
+/*
+* 通信
+* （应使用protobuf+RPC，现忽略通信，以本地复制文件的形式进行交互）
+*/
 class Role{
 public:
-    string name;
+    int type;
     string ip;
     string workdir;
     int port;
     Role();
     ~Role(){}
-    Role(string n,string w, string i, int p){
-        name = n;
+    Role(int t,string w, string i, int p){
+        type = t;
         workdir = w;
         ip = i;
         port = p;
     }
 
     void print(){
-        cout << "test class method " + name <<endl;
+        cout << "test class method " + type <<endl;
     }
 
-    /*
-    * 通信
-    * （现忽略通信，以本地复制文件的形式进行交互）
-    */
+
     void connect(Role role_dst){
     }
     void comm(Role role_dst,string file_src, string file_dst){

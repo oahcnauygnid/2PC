@@ -2,152 +2,130 @@
 Created by dingyc.
 2022.
 */
-
-#include<string>
-#include<iostream>
 #include "module.h"
 
 #define MAX_LEN 4096
 
-
 #define ROLE_CLIENT 0x00
 #define ROLE_SERVER 0x01
 
+AHE *ahe;
 
-#define INTEGER_LENGTH 64 //整数长度64bit
-double scale;
 /*
 * 生成三元组（HE-based）
 */
+int N = 1048576;//2**20=1048576
 
-
-void AHE_SETUP(){
-    EncryptionParameters parms(scheme_type::ckks);
-    size_t poly_modulus_degree = 8192;
-    parms.set_poly_modulus_degree(poly_modulus_degree);
-    parms.set_coeff_modulus(CoeffModulus::Create(poly_modulus_degree, { 60, 40, 40, 60 }));
-    scale = pow(2.0, 40);
-
-    SEALContext context(parms);
-    //print_parameters(context);
-    cout << endl;
-
-    KeyGenerator keygen(context);
-    auto secret_key = keygen.secret_key();
-    PublicKey pubkey;
-    keygen.create_public_key(pubkey);
-    RelinKeys relin_keys;
-    keygen.create_relin_keys(relin_keys);
-    GaloisKeys gal_keys;
-    keygen.create_galois_keys(gal_keys);
-
-    CKKSEncoder encoder(context);
-    size_t slot_count = encoder.slot_count();
+void dot_product_triplet_generation(vector<double> &vector_w,vector<double> &vector_r,double &u,double &v){
     
-    double x[] = {1.5,2,3};
-    double x1[] = {3,2,1.5};
-    vector<double> input1(x,x+3);
-    vector<double> input2(x1,x1+3);
-    vector<double> output1,output2,output_add,output_mul;
-    Ciphertext cipher1,cipher2,cipher_add,cipher_mul;
+    size_t n = ahe->slot_count;
+    double _v[n];
+    for (size_t i = 0; i < n; i++){
+        _v[i] = rand()%N;
+    }
+    vector<double> vector_v(_v,_v+n);
+    v = accumulate(vector_v.begin(),vector_v.end(),0.0);
 
-    //AHE_ENC(context,pubkey,input,res);
-    Encryptor encryptor(context, pubkey);
-    Plaintext x_plain1,x_plain2;
-    input1.reserve(slot_count);
-    encoder.encode(input1, scale, x_plain1);
-    input2.reserve(slot_count);
-    encoder.encode(input2, scale, x_plain2);
+    Ciphertext cipher_w;
+    ahe->AHE_ENC(ahe->encryptor,vector_w,cipher_w);
+    
+    cout<< "comm: server === cipher_w ===> client"<<endl;
 
-    encryptor.encrypt(x_plain1, cipher1);
-    encryptor.encrypt(x_plain2, cipher2);
+    Ciphertext cipher_u0,cipher_u;
+    ahe->AHE_MUL(cipher_w,vector_r,cipher_u0);
+    ahe->AHE_SUB_PLAIN(cipher_u0,vector_v,cipher_u);
 
-    Evaluator evaluator(context);
-    //加法
-    evaluator.add(cipher1,cipher2,cipher_add);
-    //乘法
-    evaluator.multiply_plain(cipher1,x_plain1,cipher_mul);
+    
+    cout<< "comm: client === cipher_u ===> server"<<endl;
 
-
-    //AHE_DEC(context,secret_key,res,output);
-    Decryptor decryptor(context, secret_key);   
-    Plaintext plain_result1,plain_result2,plain_result,plain_mul;
-    decryptor.decrypt(cipher1, plain_result1);
-    decryptor.decrypt(cipher2, plain_result2);
-    decryptor.decrypt(cipher_add, plain_result);
-    decryptor.decrypt(cipher_mul, plain_mul);
-
-    encoder.decode(plain_result1, output1);
-    encoder.decode(plain_result2, output2);
-    encoder.decode(plain_result, output_add);
-    encoder.decode(plain_mul, output_mul);
+    vector<double> vector_u;
+    ahe->AHE_DEC(ahe->decryptor,cipher_u,vector_u);
+    u = accumulate(vector_u.begin(),vector_u.end(),0.0);
 
 
-    cout<<"input1: "<<endl;
+
+}
+
+void test()
+{
+    // comm
+    Role client(ROLE_CLIENT, "workdir/client", "127.0.0.1", 22222);
+    Role server(ROLE_SERVER, "workdir/server", "127.0.0.1", 11111);
+    client.comm(server, "1.txt", "1.bak.txt");
+    server.comm(client, "2.txt", "2.bak.txt");
+    cout<<"___comm ok______________________"<<endl;
+    // AHE
+    ahe = new AHE();
+    double x[] = {1.5, 2, 3};
+    double x1[] = {3, 2, 1.5};
+    vector<double> input1(x, x + 3);
+    vector<double> input2(x1, x1 + 3);
+    vector<double> output1, output2, output_add, output_mul, output_sub_plain;
+    Ciphertext cipher1, cipher2, cipher_add, cipher_mul, cipher_sub_plain;
+
+    ahe->AHE_ENC(ahe->encryptor, input1, cipher1);
+    ahe->AHE_DEC(ahe->decryptor, cipher1, output1);
+    ahe->AHE_ENC(ahe->encryptor, input2, cipher2);
+    ahe->AHE_DEC(ahe->decryptor, cipher2, output2);
+    ahe->AHE_ADD(cipher1,cipher2,cipher_add);
+    ahe->AHE_DEC(ahe->decryptor, cipher_add, output_add);
+    ahe->AHE_MUL(cipher1,input1,cipher_mul);
+    ahe->AHE_DEC(ahe->decryptor, cipher_mul, output_mul);
+    cout << cipher_mul.scale()<<endl;
+    ahe->evaluator->rescale_to_next_inplace(cipher_mul);
+    cipher_mul.scale() = ahe->scale;
+    cout << cipher_mul.scale()<<endl;
+    Plaintext plaintext;
+    ahe->AHE_CODE(input1,plaintext);
+    cout << plaintext.scale()<<endl;
+    
+    parms_id_type last_parms_id = cipher_mul.parms_id();
+    ahe->evaluator->mod_switch_to_inplace(plaintext, last_parms_id);
+    ahe->evaluator->multiply_plain(cipher_mul,plaintext,cipher_sub_plain);
+    //ahe->AHE_SUB_PLAIN(cipher_mul,input1,cipher_sub_plain);
+    //ahe->AHE_DEC(ahe->decryptor, cipher_sub_plain, output_sub_plain);
+
+    cout << "input1: " << endl;
     print_vector(input1);
-    cout<<"output1: "<<endl;
+    cout << "output1: " << endl;
     print_vector(output1);
-    cout<<"input2: "<<endl;
+    cout << "input2: " << endl;
     print_vector(input2);
-    cout<<"output2: "<<endl;
+    cout << "output2: " << endl;
     print_vector(output2);
 
-    
-    cout<<"output_add = [input1] + [input2]: "<<endl;
+    cout << "output_add = [input1] + [input2]: " << endl;
     print_vector(output_add);
-    cout<<"output_mul = [input1] * input1: "<<endl;
+    cout << "output_mul = [input1] * input1: " << endl;
     print_vector(output_mul);
+    cout << "output_sub_plain = [cipher_mul] - input1: " << endl;
+    //print_vector(output_sub_plain);
 
+    cout<<"____AHE ok_______________________"<<endl ;
+
+    int n = ahe->slot_count;
+    double w[n]={0.0},r[n]={0.0};
+    for (size_t i = 0; i < n; i++){
+        w[i] = i%100;
+        r[i] = rand()%N;
+    }
+    vector<double> vector_w(w,w+n);
+    vector<double> vector_r(r,r+n);
+    double u=0.0,v=0.0;
+    dot_product_triplet_generation(vector_w,vector_r,u,v);
+    cout << "w·r = "<< inner_product(vector_w.begin(),vector_w.end(),vector_r.begin(),0.0) <<endl;
     
+    cout << "u+v = "<<u+v<<endl;
     
-}
-void AHE_ENC(SEALContext context,PublicKey pubkey, vector<double> plain, Ciphertext res){
-    Encryptor encryptor(context, pubkey);
-    Plaintext x_plain;
-    CKKSEncoder encoder(context);
-    size_t slot_count = encoder.slot_count();
-    plain.reserve(slot_count);
-    encoder.encode(plain, scale, x_plain);
-    encryptor.encrypt(x_plain, res);
+    cout<<"____dot_product_triplet_generation ok_______________________"<<endl ;
+
+
+    delete ahe;
 }
 
-void AHE_DEC(SEALContext context, auto secret_key, Ciphertext cipher, vector<double> plain){
-    Decryptor decryptor(context, secret_key);
-    Plaintext plain_result;
-    decryptor.decrypt(cipher, plain_result);
-    CKKSEncoder encoder(context);
-    encoder.decode(plain_result, plain);
-}
+int main()
+{
 
-void AHE_ADD(Ciphertext c1, Ciphertext c2, Ciphertext res){
-
-
-}
-void AHE_MUL(Ciphertext c, double c1[], Ciphertext* res){
-
-    
-}
-
-void dot_product_triplet_generation(Role role){
-    
-
-
-
-
-
-}
-
-void test(){
-    //comm
-    Role client("client","workdir/client","127.0.0.1",22222);
-    Role server("server","workdir/server","127.0.0.1",11111);
-    client.comm(server,"1.txt","1.bak.txt");
-    server.comm(client,"2.txt","2.bak.txt");
-    //
-}
-
-int main(){
-    
-    AHE_SETUP();
+    test();
     return 0;
 }

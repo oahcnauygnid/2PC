@@ -22,12 +22,11 @@
 
 
 #include "role.h"
+#include "ahe.h"
 
 using namespace std;
 using namespace seal;
 
-void AHE_ENC(SEALContext context,CKKSEncoder encoder,PublicKey pubkey, vector<double> plain, Ciphertext *res);
-void AHE_DEC(SEALContext context, CKKSEncoder encoder,auto secret_key, Ciphertext *cipher, vector<double> plain);
 
 
 /*
