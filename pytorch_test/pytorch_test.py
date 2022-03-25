@@ -3,6 +3,7 @@ Created by dingyc.
 2022.
 '''
 
+from dataclasses import replace
 from random import random
 import torch
 import torch.nn as nn
@@ -129,7 +130,7 @@ def run(datadir,model,mode="train",run_epochs=epochs):
     net = CNN()     
     optimizer = optim.SGD(net.parameters(),lr=learning_rate,momentum=momentum)
     if(mode!="train"):
-        checkpoint = torch.load(model)  
+        checkpoint = torch.load(model,map_location=device)  
         net.load_state_dict(checkpoint['net'])  
         optimizer.load_state_dict(checkpoint['optimizer'])
     net = net.to(device) 
@@ -203,16 +204,29 @@ def run(datadir,model,mode="train",run_epochs=epochs):
 
         run(datadir,modelpath,mode="test")
 
+def rewrite_model_params(model):
+    '''
+    rewrite the parameters to C/C++ double type as an '.h' file
+    '''
+    net = CNN()     
+    optimizer = optim.SGD(net.parameters(),lr=learning_rate,momentum=momentum)
+    checkpoint = torch.load(model,map_location=device)  
+    net.load_state_dict(checkpoint['net'])  
+    out_model = torch.jit.trace(net, torch.ones(1, 1, 28, 28).to(device))
+    torch.jit.save(out_model,model.replace(".pth",".pt"))
+
 
 
 if __name__ =="__main__":
-    inputdir = "D:/vscode/workspace/python/PPML/dataset/mnist_dataset"
-    modeldir = "D:/vscode/workspace/python/PPML/models/cnn_mnist"
-    modelfile = "D:/vscode/workspace/python/PPML/models/cnn_mnist/mnist_net10+20.pth"
+    inputdir = "/home/dingyc/PPML/mywork/2PC/pytorch_test/dataset/mnist_dataset"
+    modeldir = "/home/dingyc/PPML/mywork/2PC/pytorch_test/models/cnn_mnist"
+    modelfile = "/home/dingyc/PPML/mywork/2PC/pytorch_test/models/cnn_mnist/mnist_net10+20.pth"
     #"train", "continue_train", "test"
     # run(inputdir,modeldir,mode="train")
     # print("done")
     # run(inputdir,modelfile,mode="continue_train",run_epochs=20)
     # print("done")
-    run(inputdir,modelfile,mode="test")
+    # run(inputdir,modelfile,mode="test")
+    # print("done")
+    rewrite_model_params(modelfile)
     print("done")

@@ -4,6 +4,7 @@ Created by dingyc.
 */
 #include "module.h"
 
+
 #define MAX_LEN 4096
 
 #define ROLE_CLIENT 0x00
@@ -24,23 +25,33 @@ void dot_product_triplet_generation(vector<double> &vector_w,vector<double> &vec
         _v[i] = rand()%N;
     }
     vector<double> vector_v(_v,_v+n);
-    v = accumulate(vector_v.begin(),vector_v.end(),0.0);
+    Plaintext plain_v;
+    ahe->AHE_CODE(vector_v,plain_v);
 
+    cout<< "server: enc(w) = [w]"<<endl;
     Ciphertext cipher_w;
     ahe->AHE_ENC(ahe->encryptor,vector_w,cipher_w);
     
     cout<< "comm: server === cipher_w ===> client"<<endl;
 
+    cout<< "client: r·[w]-v = [u]"<<endl;
     Ciphertext cipher_u0,cipher_u;
     ahe->AHE_MUL(cipher_w,vector_r,cipher_u0);
-    ahe->AHE_SUB_PLAIN(cipher_u0,vector_v,cipher_u);
+    ahe->evaluator->rescale_to_next_inplace(cipher_u0);
+    cipher_u0.scale() = ahe->scale;
+    parms_id_type last_parms_id = cipher_u0.parms_id();
+    ahe->evaluator->mod_switch_to_inplace(plain_v, last_parms_id);
+    ahe->evaluator->sub_plain(cipher_u0,plain_v,cipher_u);
 
-    
     cout<< "comm: client === cipher_u ===> server"<<endl;
 
+    cout<< "server: dec([u])=u, and u=sum(u)"<<endl;
     vector<double> vector_u;
     ahe->AHE_DEC(ahe->decryptor,cipher_u,vector_u);
     u = accumulate(vector_u.begin(),vector_u.end(),0.0);
+
+    cout<< "client: v=sum(v)"<<endl;
+    v = accumulate(vector_v.begin(),vector_v.end(),0.0);
 
 
 
@@ -71,13 +82,10 @@ void test()
     ahe->AHE_DEC(ahe->decryptor, cipher_add, output_add);
     ahe->AHE_MUL(cipher1,input1,cipher_mul);
     ahe->AHE_DEC(ahe->decryptor, cipher_mul, output_mul);
-    cout << cipher_mul.scale()<<endl;
     ahe->evaluator->rescale_to_next_inplace(cipher_mul);
     cipher_mul.scale() = ahe->scale;
-    cout << cipher_mul.scale()<<endl;
     Plaintext plaintext;
     ahe->AHE_CODE(input1,plaintext);
-    cout << plaintext.scale()<<endl;
     
     parms_id_type last_parms_id = cipher_mul.parms_id();
     ahe->evaluator->mod_switch_to_inplace(plaintext, last_parms_id);
@@ -104,19 +112,13 @@ void test()
     cout<<"____AHE ok_______________________"<<endl ;
 
     int n = ahe->slot_count;
-    double w[n]={0.0},r[n]={0.0};
-    for (size_t i = 0; i < n; i++){
-        w[i] = i%100;
-        r[i] = rand()%N;
-    }
-    vector<double> vector_w(w,w+n);
-    vector<double> vector_r(r,r+n);
+    double w[n]={1,2,3},r[n]={1,2,3};
+    vector<double> vector_w(w,w+3);
+    vector<double> vector_r(r,r+3);
     double u=0.0,v=0.0;
     dot_product_triplet_generation(vector_w,vector_r,u,v);
     cout << "w·r = "<< inner_product(vector_w.begin(),vector_w.end(),vector_r.begin(),0.0) <<endl;
-    
     cout << "u+v = "<<u+v<<endl;
-    
     cout<<"____dot_product_triplet_generation ok_______________________"<<endl ;
 
 
