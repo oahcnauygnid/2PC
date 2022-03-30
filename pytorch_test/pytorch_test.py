@@ -100,23 +100,28 @@ class CNN (nn.Module):
     def __init__(self):
         super(CNN,self).__init__()
         self.con1 = nn.Sequential(
-            nn.Conv2d(in_channels=1, out_channels=16, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(in_channels=1, out_channels=16, kernel_size=5, stride=1, padding=0),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2)
         )
         self.con2 = nn.Sequential(
-            nn.Conv2d(16, 32, 5, 1, 2),
+            nn.Conv2d(16, 16, 5, 1, 0),
             nn.ReLU(),
             nn.MaxPool2d(2)
         )
-        self.fc1 = nn.Linear(32 * 7*7, 10)
+        self.fc1 = nn.Sequential(
+            nn.Linear(256, 100),
+            nn.ReLU()
+        )
+        self.fc2 = nn.Linear(100, 10)
 
 
     def forward(self,x):            # (batch,  1, 28, 28)
-        x = self.con1(x)            # (batch, 16, 14, 14)
-        x = self.con2(x)            # (batch, 32,  7,  7)
-        x = x.view(x.size(0), -1)   # (batch_size, 32*7*7)
-        x = self.fc1(x)             # (batch_size, 10)
+        x = self.con1(x)            # (batch, 16, 12, 12)
+        x = self.con2(x)            # (batch, 16,  4,  4)
+        x = x.view(x.size(0), -1)   # (batch_size, 256)
+        x = self.fc1(x)             # (batch_size, 100)
+        x = self.fc2(x)             # (batch_size, 10)
         return x
 
 
@@ -206,27 +211,28 @@ def run(datadir,model,mode="train",run_epochs=epochs):
 
 def rewrite_model_params(model):
     '''
-    rewrite the parameters to C/C++ double type as an '.h' file
+    rewrite the parameters to C/C++ double type as an '.pt' file
     '''
     net = CNN()     
-    optimizer = optim.SGD(net.parameters(),lr=learning_rate,momentum=momentum)
     checkpoint = torch.load(model,map_location=device)  
     net.load_state_dict(checkpoint['net'])  
     out_model = torch.jit.trace(net, torch.ones(1, 1, 28, 28).to(device))
     torch.jit.save(out_model,model.replace(".pth",".pt"))
+    
+
 
 
 
 if __name__ =="__main__":
-    inputdir = "/home/dingyc/PPML/mywork/2PC/pytorch_test/dataset/mnist_dataset"
+    inputdir = "/home/dingyc/PPML/mywork/2PC/pytorch_test/mnist_dataset"
     modeldir = "/home/dingyc/PPML/mywork/2PC/pytorch_test/models/cnn_mnist"
-    modelfile = "/home/dingyc/PPML/mywork/2PC/pytorch_test/models/cnn_mnist/mnist_net10+20.pth"
+    modelfile = "/home/dingyc/PPML/mywork/2PC/pytorch_test/models/cnn_mnist/mnist_net.pth"
     #"train", "continue_train", "test"
     # run(inputdir,modeldir,mode="train")
     # print("done")
     # run(inputdir,modelfile,mode="continue_train",run_epochs=20)
     # print("done")
-    # run(inputdir,modelfile,mode="test")
-    # print("done")
-    rewrite_model_params(modelfile)
+    run(inputdir,modelfile,mode="test")
     print("done")
+    # rewrite_model_params(modelfile)
+    # print("done")

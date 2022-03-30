@@ -1,8 +1,7 @@
-
+#pragma once
 #include<string>
 
 #include<iostream>
-using namespace std;
 
 /*
 * 通信
@@ -11,12 +10,12 @@ using namespace std;
 class Role{
 public:
     int type;
-    string ip;
-    string workdir;
+    std::string ip;
+    std::string workdir;
     int port;
     Role();
     ~Role(){}
-    Role(int t,string w, string i, int p){
+    Role(int t,std::string w, std::string i, int p){
         type = t;
         workdir = w;
         ip = i;
@@ -24,17 +23,17 @@ public:
     }
 
     void print(){
-        cout << "test class method " + type <<endl;
+        std::cout << "test class method " + type <<std::endl;
     }
 
 
     void connect(Role role_dst){
     }
-    void comm(Role role_dst,string file_src, string file_dst){
+    void comm(Role role_dst, std::string file_src, std::string file_dst){
         connect(role_dst);
-        string cmd = ("cp " + workdir+"/"+file_src +" "+ role_dst.workdir+"/"+file_dst);
+        std::string cmd = ("cp " + workdir+"/"+file_src +" "+ role_dst.workdir+"/"+file_dst);
         system(cmd.c_str());
-        print();
+        Role::print();
     }
 
 };

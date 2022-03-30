@@ -1,5 +1,4 @@
-// Copyright (c) Microsoft Corporation. All rights reserved.
-// Licensed under the MIT license.
+// Created by dingyc. 2022.
 
 #pragma once
 
@@ -19,15 +18,40 @@
 #include <string>
 #include <thread>
 #include <vector>
-
+//#include <pthread.h>
+//#include <semaphore.h>  
 
 #include "role.h"
 #include "ahe.h"
-
-using namespace std;
-using namespace seal;
+//#include "data_trans.h"
 
 
+
+#define MAX_LEN 4096
+
+#define ROLE_CLIENT 0x00
+#define ROLE_SERVER 0x01
+
+#define SERVER "server"
+#define CLIENT "client"
+
+
+
+
+AHE *ahe;
+
+
+seal::Ciphertext cipher_w;
+seal::Ciphertext cipher_u;
+/*
+Helper function: send and receive info (now as static data).
+*/
+void send(std::string role, std::string name){
+    //std::cout<< role << "send: "<<name<<std::endl;
+}
+void receive(std::string role, std::string name){
+    //std::cout<< role<< "recive: "<<name<<std::endl;
+}
 
 /*
 Helper function: Prints the name of the example in a fancy banner.
