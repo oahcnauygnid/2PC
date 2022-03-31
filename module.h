@@ -18,12 +18,12 @@
 #include <string>
 #include <thread>
 #include <vector>
-//#include <pthread.h>
-//#include <semaphore.h>  
+#include <pthread.h>
+#include <semaphore.h>  
 
 #include "role.h"
 #include "ahe.h"
-//#include "data_trans.h"
+#include "data_trans.h"
 
 
 
@@ -35,22 +35,25 @@
 #define SERVER "server"
 #define CLIENT "client"
 
-
+sem_t sem1;  
+sem_t sem2;  
 
 
 AHE *ahe;
 
 
-seal::Ciphertext cipher_w;
-seal::Ciphertext cipher_u;
+seal::Ciphertext *cipher_w;
+seal::Ciphertext *cipher_u;
+
+
 /*
 Helper function: send and receive info (now as static data).
 */
 void send(std::string role, std::string name){
-    //std::cout<< role << "send: "<<name<<std::endl;
+    std::cout<< role << ": send => "<<name<<std::endl;
 }
 void receive(std::string role, std::string name){
-    //std::cout<< role<< "recive: "<<name<<std::endl;
+    std::cout<< role<< ": recive <= "<<name<<std::endl;
 }
 
 /*

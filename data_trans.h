@@ -3,7 +3,6 @@
 #include "torch/script.h"
 #include <iostream>
 #include <string>
-using namespace std;
 
 /* mnist cnn
 name: con1.0.weight
@@ -134,7 +133,7 @@ float con1_xc_extend[25][496];
 float con1_xs_extend[25][496];
 float con2_input_extend[400][64];
 
-void get_double_params(string model_path) {
+void get_double_params(std::string model_path) {
          
     torch::jit::Module module = torch::jit::load(model_path.c_str());
     int i = 0;

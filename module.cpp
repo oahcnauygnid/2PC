@@ -3,43 +3,49 @@ Created by dingyc.
 2022.
 */
 #include "module.h"
- 
+
+#define MAX_LEN 4096
+
+#define ROLE_CLIENT 0x00
+#define ROLE_SERVER 0x01
+
 
 
 int N = 1048576;//2**20=1048576
 /*
 * 生成三元组（HE-based）
 */
-void server_dot_product_triplet_generation(std::vector<double> &vector_w,double &u){
-    
+
+double server_dot_product_triplet_generation(std::vector<double> *vector_w){
+    vector_w = (std::vector<double> *)vector_w;
     size_t n = ahe->slot_count;
-    
+
     std::cout<< "server: enc(w) = [w]"<<std::endl;
-    seal::Ciphertext cipher_w;
-    ahe->AHE_ENC(ahe->encryptor,vector_w,cipher_w);
+    cipher_w = new  seal::Ciphertext();
+    ahe->AHE_ENC(ahe->encryptor,*vector_w,*cipher_w);
+    
+    sem_wait(&sem1);
+    //std::cout<< "server === cipher_w ===> client"<<std::endl;
+    send(SERVER,"[w]");
+    sem_post(&sem2);
 
-    //sem_wait(&sem1);
-    send(SERVER,"cipher_w");
-    //sem_post(&sem2); 
-
-    //std::cout<< "waiting: client: r·[w]-v = [u]"<<std::endl;
-    //sem_wait(&sem1);
-    receive(SERVER,"cipher_u");
+    sem_wait(&sem1);
+    //std::cout<< "comm: client === cipher_u ===> server"<<std::endl;
+    receive(SERVER,"[u]");
 
     std::cout<< "server: dec([u])=u, and u=sum(u)"<<std::endl;
     std::vector<double> vector_u;
-    ahe->AHE_DEC(ahe->decryptor,cipher_u,vector_u);
-    u = accumulate(vector_u.begin(),vector_u.end(),0.0);
-
-    std::cout<< "server ok"<<std::endl;
+    ahe->AHE_DEC(ahe->decryptor,*cipher_u,vector_u);
+    double u = std::accumulate(vector_u.begin(),vector_u.end(),0.0);
+    return u;
 
 }
-
-void client_dot_product_triplet_generation(std::vector<double> &vector_r,double &v){
+double client_dot_product_triplet_generation(std::vector<double> *vector_r){
     
+
+    vector_r = (std::vector<double> *)vector_r;
     size_t n = ahe->slot_count;
     
-    std::cout<< "client: vector_v <= Z_N^n"<<std::endl;
     double _v[n];
     for (size_t i = 0; i < n; i++){
         _v[i] = rand()%N;
@@ -48,32 +54,68 @@ void client_dot_product_triplet_generation(std::vector<double> &vector_r,double 
     seal::Plaintext plain_v;
     ahe->AHE_CODE(vector_v,plain_v);
 
-    std::cout<< "waiting: server: enc(w) = [w]"<<std::endl;
-    
-    //sem_wait(&sem2); 
-    receive(CLIENT,"cipher_w");
+    sem_wait(&sem2);
+    receive(CLIENT,"[w]");
+    //std::cout<< "comm: server === cipher_w ===> client"<<std::endl;
 
     std::cout<< "client: r·[w]-v = [u]"<<std::endl;
     seal::Ciphertext cipher_u0;
-    ahe->AHE_MUL(cipher_w,vector_r,cipher_u0);
+    cipher_u = new seal::Ciphertext();
+    ahe->AHE_MUL(*cipher_w,*vector_r,cipher_u0);
     ahe->evaluator->rescale_to_next_inplace(cipher_u0);
     cipher_u0.scale() = ahe->scale;
     seal::parms_id_type last_parms_id = cipher_u0.parms_id();
     ahe->evaluator->mod_switch_to_inplace(plain_v, last_parms_id);
-    ahe->evaluator->sub_plain(cipher_u0,plain_v,cipher_u);
+    ahe->evaluator->sub_plain(cipher_u0,plain_v,(*cipher_u));
 
-    send(CLIENT,"cipher_u");
-    //sem_post(&sem1); 
-
-    std::cout<< "waiting server: dec([u])=u, and u=sum(u)"<<std::endl;
+    //std::cout<< "comm: client === cipher_u ===> server"<<std::endl;
+    
+    send(CLIENT,"[u]");
+    sem_post(&sem1);
 
     std::cout<< "client: v=sum(v)"<<std::endl;
-    v = accumulate(vector_v.begin(),vector_v.end(),0.0);
-
-    std::cout<< "client ok"<<std::endl;
+    double v = std::accumulate(vector_v.begin(),vector_v.end(),0.0);
+    return v;
 }
 
+void dot_product_triplet_generation(std::vector<double> &vector_w,std::vector<double> &vector_r,double &u,double &v){
+    std::cout<< "server: enc(w) = [w]"<<std::endl;
+    seal::Ciphertext cipher_w_;
+    ahe->AHE_ENC(ahe->encryptor,vector_w,cipher_w_);
+    size_t n = ahe->slot_count;
+    double _v[n];
+    for (size_t i = 0; i < n; i++){
+        _v[i] = rand()%N;
+    }
+    std::vector<double> vector_v(_v,_v+n);
+    seal::Plaintext plain_v;
+    ahe->AHE_CODE(vector_v,plain_v);
 
+    std::cout<< "server: enc(w) = [w]"<<std::endl;
+    ahe->AHE_ENC(ahe->encryptor,vector_w,cipher_w_);
+    
+    std::cout<< "comm: server === cipher_w ===> client"<<std::endl;
+
+    std::cout<< "client: r·[w]-v = [u]"<<std::endl;
+    seal::Ciphertext cipher_u0,cipher_u_;
+    ahe->AHE_MUL(cipher_w_,vector_r,cipher_u0);
+    ahe->evaluator->rescale_to_next_inplace(cipher_u0);
+    cipher_u0.scale() = ahe->scale;
+    seal::parms_id_type last_parms_id = cipher_u0.parms_id();
+    ahe->evaluator->mod_switch_to_inplace(plain_v, last_parms_id);
+    ahe->evaluator->sub_plain(cipher_u0,plain_v,cipher_u_);
+
+    std::cout<< "comm: client === cipher_u ===> server"<<std::endl;
+
+    std::cout<< "server: dec([u])=u, and u=sum(u)"<<std::endl;
+    std::vector<double> vector_u;
+    ahe->AHE_DEC(ahe->decryptor,cipher_u_,vector_u);
+    u = std::accumulate(vector_u.begin(),vector_u.end(),0.0);
+
+    std::cout<< "client: v=sum(v)"<<std::endl;
+    v = std::accumulate(vector_v.begin(),vector_v.end(),0.0);
+
+}
 
 
 void client_conv(){
@@ -90,7 +132,6 @@ void server_conv(){
 void test()
 {
     // comm
-    /*
     {
     Role client(ROLE_CLIENT, "workdir/client", "127.0.0.1", 22222);
     Role server(ROLE_SERVER, "workdir/server", "127.0.0.1", 11111);
@@ -98,6 +139,7 @@ void test()
     server.comm(client, "2.txt", "2.bak.txt");
     std::cout<<"___ comm ok______________________"<<std::endl;
     // AHE
+    ahe = new AHE();
     double x[] = {1.5, -2, 3};
     double x1[] = {3, 2, 1.5};
     std::vector<double> input1(x, x + 3);
@@ -135,14 +177,14 @@ void test()
     print_vector(output_sub_plain);
 
     std::cout<<"____ AHE ok_______________________"<<std::endl ;
-/*
+
     int n = ahe->slot_count;
     double w[n]={1,2,3},r[n]={1,2,3};
     std::vector<double> vector_w(w,w+3);
     std::vector<double> vector_r(r,r+3);
     double u=0.0,v=0.0;
-    //dot_product_triplet_generation(vector_w,vector_r,u,v);
-    std::cout << "w·r = "<< inner_product(vector_w.begin(),vector_w.end(),vector_r.begin(),0.0) <<std::endl;
+    dot_product_triplet_generation(vector_w,vector_r,u,v);
+    std::cout << "w·r = "<< std::inner_product(vector_w.begin(),vector_w.end(),vector_r.begin(),0.0) <<std::endl;
     std::cout << "u+v = "<<u+v<<std::endl;
     std::cout<<"____ dot_product_triplet_generation ok_______________________"<<std::endl ;
 
@@ -163,7 +205,7 @@ void test()
     conv1_weight_to_mult();
     std::cout<<"con1_0_weight_extend: "<<con1_0_weight_extend[0][0]<<"... "<<con1_0_weight_extend[15][24]<<std::endl;
     std::cout<<"____ conv1_to_mult ok_______________________"<<std::endl;
-    
+    }
 
     get_rand_params();
     std::cout<<"____ get_rand_params ok______________________"<<std::endl;
@@ -173,35 +215,44 @@ void test()
         for (size_t j = 0; j < conv1_extend_dims[1]; j++)
             con1_xs_extend[i][j] = con1_input_extend[i][j] - con1_xc_extend[i][j];
     
+        
+    int ret = 0;  
+    pthread_t id1;  
+    pthread_t id2;  
 
-    }
     sem_init(&sem1, 0, 1);  
-    sem_init(&sem2, 0, 0);
-    size_t ret = pthread_create(&id1, NULL, (void *(*)(void*))client_dot_product_triplet_generation, NULL);  
+    sem_init(&sem2, 0, 0);  
 
-    if(ret)  
-    {  
+
+    double x[] = {1.5, -2, 3};
+    double x1[] = {3, 2, 1.5};
+    std::vector<double> input_server(x, x + 3);
+    std::vector<double> input_client(x1, x1 + 3);
+    ret = pthread_create(&id1, NULL, (void *(*)(void *))server_dot_product_triplet_generation, (void*)&input_server);  
+    if(ret)  {  
         printf("Create pthread error\n");  
-        return;  
+        return;
     }  
-
-    ret = pthread_create(&id2, NULL, (void *(*)(void*))server_dot_product_triplet_generation, NULL);  
-
-    if(ret)  
-    {  
+    ret = pthread_create(&id2, NULL,(void *(*)(void *))client_dot_product_triplet_generation, (void*)&input_client);  
+    if(ret)  {  
         printf("Create pthread error\n");  
-        return;  
+        return;
     }  
 
     pthread_join(id1, NULL);  
     pthread_join(id2, NULL);  
+    // std::cout << "w·r = "<< std::inner_product(vector_w.begin(),vector_w.end(),vector_r.begin(),0.0) <<std::endl;
+    // std::cout << "u+v = "<<u+v<<std::endl;
+    // std::cout<<"____ dot_product_triplet_generation ok_______________________"<<std::endl ;
+
+
+
 
     sem_destroy(&sem1);  
     sem_destroy(&sem2);  
-    
+
 
     delete ahe;
-    */
 }
 
 int main()
