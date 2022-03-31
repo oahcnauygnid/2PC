@@ -45,6 +45,8 @@ void server_dot_product_triplet_generation(void *arg){
     ahe->AHE_DEC(ahe->decryptor,*cipher_u,vector_u);
     double u = std::accumulate(vector_u.begin(),vector_u.end(),0.0);
     retvar->num = u;
+
+    sem_post(&sem1);//将sem1恢复初始状态，以便再次使用
     pthread_exit((void *)retvar);
 
 }
@@ -88,15 +90,25 @@ void client_dot_product_triplet_generation(void *arg){
     pthread_exit((void *)retvar);
 }
 
-void client_conv(){
-
-
-}
-
 void server_conv(){
-
+    sem_wait(&sem2);
+    receive(SERVER,"con1_xs_extend");
+    
 
 }
+void client_conv(){
+    size_t conv1_extend_dims[]={25,496};
+    for (size_t i = 0; i < conv1_extend_dims[0]; i++)
+        for (size_t j = 0; j < conv1_extend_dims[1]; j++)
+            con1_xs_extend[i][j] = con1_input_extend[i][j] - con1_xc_extend[i][j];
+    sem_wait(&sem1);
+    send(CLIENT,"con1_xs_extend");
+    sem_post(&sem2);
+    
+
+}
+
+
 
 
 void test()
@@ -169,7 +181,6 @@ void test()
         printf("Create pthread error\n");  
         return;
     }  
-
     pthread_join(id1, (void**)&u_t);  
     pthread_join(id2, (void**)&v_t);  
     double u = u_t.num;
@@ -200,10 +211,7 @@ void test()
     get_rand_params();
     std::cout<<"____ get_rand_params ok______________________"<<std::endl;
 
-    size_t conv1_extend_dims[]={25,496};
-    for (size_t i = 0; i < conv1_extend_dims[0]; i++)
-        for (size_t j = 0; j < conv1_extend_dims[1]; j++)
-            con1_xs_extend[i][j] = con1_input_extend[i][j] - con1_xc_extend[i][j];
+    
     
         
     
