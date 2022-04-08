@@ -46,6 +46,7 @@ seal::Ciphertext *cipher_w;
 seal::Ciphertext *cipher_u;
 
 
+
 /*
 Helper function: send and receive info (now as static data).
 */

@@ -19,42 +19,44 @@ int N = 1048576;//2**20=1048576
 typedef struct{
     std::vector<double> *vector;
     double num;
-} th_t;
+} th_t_dot3gen;
 
-void server_dot_product_triplet_generation(void *arg){
-    th_t *retvar = (th_t *)arg;
-    std::vector<double> *vector_w = retvar->vector;
+typedef struct{
+    float **weight;
+    float **xs;
+    float **bias;
+} th_t_conv_server;
+
+typedef struct{
+    float **xc;
+} th_t_conv_client;
+
+double server_dot_product_triplet_generation(std::vector<double> *vector_w){
 
     size_t n = ahe->slot_count;
 
-    std::cout<< "server: enc(w) = [w]"<<std::endl;
+    //std::cout<< "server: enc(w) = [w]"<<std::endl;
     cipher_w = new  seal::Ciphertext();
     ahe->AHE_ENC(ahe->encryptor,*vector_w,*cipher_w);
     
-    sem_wait(&sem1);
     //std::cout<< "server === cipher_w ===> client"<<std::endl;
-    send(SERVER,"[w]");
+    //send(SERVER,"[w]");
     sem_post(&sem2);
 
     sem_wait(&sem1);
     //std::cout<< "comm: client === cipher_u ===> server"<<std::endl;
-    receive(SERVER,"[u]");
+    //receive(SERVER,"[u]");
 
-    std::cout<< "server: dec([u])=u, and u=sum(u)"<<std::endl;
+    //std::cout<< "server: dec([u])=u, and u=sum(u)"<<std::endl;
     std::vector<double> vector_u;
     ahe->AHE_DEC(ahe->decryptor,*cipher_u,vector_u);
     double u = std::accumulate(vector_u.begin(),vector_u.end(),0.0);
-    retvar->num = u;
 
-    sem_post(&sem1);//将sem1恢复初始状态，以便再次使用
-    pthread_exit((void *)retvar);
+    return u;
 
 }
-void client_dot_product_triplet_generation(void *arg){
+double client_dot_product_triplet_generation(std::vector<double> *vector_r){
     
-    th_t *retvar = (th_t *)arg;
-    std::vector<double> *vector_r = retvar->vector;
-
     size_t n = ahe->slot_count;
     
     double _v[n];
@@ -66,10 +68,10 @@ void client_dot_product_triplet_generation(void *arg){
     ahe->AHE_CODE(vector_v,plain_v);
 
     sem_wait(&sem2);
-    receive(CLIENT,"[w]");
+    //receive(CLIENT,"[w]");
     //std::cout<< "comm: server === cipher_w ===> client"<<std::endl;
 
-    std::cout<< "client: r·[w]-v = [u]"<<std::endl;
+    //std::cout<< "client: r·[w]-v = [u]"<<std::endl;
     seal::Ciphertext cipher_u0;
     cipher_u = new seal::Ciphertext();
     ahe->AHE_MUL(*cipher_w,*vector_r,cipher_u0);
@@ -81,39 +83,92 @@ void client_dot_product_triplet_generation(void *arg){
 
     //std::cout<< "comm: client === cipher_u ===> server"<<std::endl;
     
-    send(CLIENT,"[u]");
+    //send(CLIENT,"[u]");
     sem_post(&sem1);
 
-    std::cout<< "client: v=sum(v)"<<std::endl;
-    double v = std::accumulate(vector_v.begin(),vector_v.end(),0.0);
-    retvar->num = v;
-    pthread_exit((void *)retvar);
+    //std::cout<< "client: v=sum(v)"<<std::endl;
+    float v = std::accumulate(vector_v.begin(),vector_v.end(),0.0);
+    return v;
 }
 
-void server_conv(){
+/*
+* conv1卷积，client生成X_C = R,并发送X_S = X-R
+*/
+
+void server_conv1_pre(){
     sem_wait(&sem2);
-    receive(SERVER,"con1_xs_extend");
+    receive(SERVER,"X_S");
+
+    double w[25];
+    std::vector<double> vectors_w[conv1_out_dims[0]];//16*(25*1)
+    for (size_t i = 0; i < conv1_out_dims[0]; i++){
+        for (size_t j = 0; j < 25; j++){
+            w[j] = con1_0_weight_extend[i][j];
+        }
+        vectors_w[i] = std::vector<double>(w,w+25);
+    }
     
+    for (size_t i = 0; i < 16; i++){
+        for (size_t j = 0; j < 496; j++){
+            con1_ys_extend[i][j] = server_dot_product_triplet_generation(&vectors_w[i]);
+        }
+    }
 
 }
-void client_conv(){
-    size_t conv1_extend_dims[]={25,496};
-    for (size_t i = 0; i < conv1_extend_dims[0]; i++)
-        for (size_t j = 0; j < conv1_extend_dims[1]; j++)
+void client_conv1_pre(){
+    for (size_t i = 0; i < conv1_out_dims[0]; i++){
+        for (size_t j = 0; j < conv1_out_dims[1]; j++){
+            con1_xc_extend[i][j] = rand()/(RAND_MAX+0.0);
             con1_xs_extend[i][j] = con1_input_extend[i][j] - con1_xc_extend[i][j];
-    sem_wait(&sem1);
-    send(CLIENT,"con1_xs_extend");
+        }
+    }
+
+    send(CLIENT,"X_S");
     sem_post(&sem2);
+
+    double v[25];
+    std::vector<double> vectors_v[conv1_out_dims[1]];//496*25
+    for (size_t j = 0; j < conv1_out_dims[1]; j++){//note the order 
     
+        for (size_t i = 0; i < 25; i++){
+            v[i] = con1_xc_extend[i][j];
+        }
+        vectors_v[j] = std::vector<double>(v,v+25);
+    }
+    
+    for (size_t j = 0; j < 496; j++){//note the order 
+        for (size_t i = 0; i < 16; i++){
+            if((j+1)%10==0 || j+1==496){
+                std::cout<<j+1<<"/496"<<std::endl;
+            }
+            con1_yc_extend[i][j] = client_dot_product_triplet_generation(&vectors_v[j]);
+        }
+    }
 
 }
 
 
 
+void server_conv1(){
+    
 
-void test()
-{
-    // comm
+}
+void client_conv1(){
+    
+
+}
+
+void test(){
+
+    size_t ok = 0;
+    int ret = 0;  
+    pthread_t id1;  
+    pthread_t id2;  
+    sem_init(&sem1, 0, 0);  
+    sem_init(&sem2, 0, 0);
+    
+    ahe = new AHE();
+    if(ok)
     {
     Role client(ROLE_CLIENT, "workdir/client", "127.0.0.1", 22222);
     Role server(ROLE_SERVER, "workdir/server", "127.0.0.1", 11111);
@@ -121,7 +176,6 @@ void test()
     server.comm(client, "2.txt", "2.bak.txt");
     std::cout<<"___ comm ok______________________"<<std::endl;
     // AHE
-    ahe = new AHE();
     double x[] = {1.5, -2, 3};
     double x1[] = {3, 2, 1.5};
     std::vector<double> input1(x, x + 3);
@@ -164,23 +218,11 @@ void test()
     double w[n]={1,2,3},r[n]={1,2,3};
     std::vector<double> vector_w(w,w+3);
     std::vector<double> vector_r(r,r+3);
-    th_t u_t = {&vector_w,0},v_t={&vector_r,0};
-    int ret = 0;  
-    pthread_t id1;  
-    pthread_t id2;  
-    sem_init(&sem1, 0, 1);  
-    sem_init(&sem2, 0, 0);  
+    th_t_dot3gen u_t = {&vector_w,0},v_t={&vector_r,0};
+      
     
-    ret = pthread_create(&id1, NULL, (void *(*)(void *))server_dot_product_triplet_generation, (void*)&u_t);  
-    if(ret)  {  
-        printf("Create pthread error\n");  
-        return;
-    }  
-    ret = pthread_create(&id2, NULL,(void *(*)(void *))client_dot_product_triplet_generation, (void*)&v_t);  
-    if(ret)  {  
-        printf("Create pthread error\n");  
-        return;
-    }  
+    pthread_create(&id1, NULL, (void *(*)(void *))server_dot_product_triplet_generation, (void*)&u_t);  
+    pthread_create(&id2, NULL,(void *(*)(void *))client_dot_product_triplet_generation, (void*)&v_t);  
     pthread_join(id1, (void**)&u_t);  
     pthread_join(id2, (void**)&v_t);  
     double u = u_t.num;
@@ -207,16 +249,26 @@ void test()
     std::cout<<"con1_0_weight_extend: "<<con1_0_weight_extend[0][0]<<"... "<<con1_0_weight_extend[15][24]<<std::endl;
     std::cout<<"____ conv1_to_mult ok_______________________"<<std::endl;
     }
-
-    get_rand_params();
-    std::cout<<"____ get_rand_params ok______________________"<<std::endl;
-
+    std::string model_path = "/home/dingyc/PPML/mywork/2PC/pytorch_test/models/cnn_mnist/mnist_net.pt";
+    get_double_params(model_path);
+    
+    pthread_create(&id1, NULL, (void *(*)(void *))client_conv1_pre, NULL);  
+    pthread_create(&id2, NULL,(void *(*)(void *))server_conv1_pre, NULL);  
+    pthread_join(id1, NULL);  
+    pthread_join(id2, NULL);
+    std::cout<<"____ conv1_pre ok______________________"<<std::endl;
+    
+    /*
+    th_t_conv_server s_t={(float**)con1_0_weight_extend,(float**)con1_xs_extend,NULL};
+    th_t_conv_client c_t={(float**)con1_xc_extend};
+    pthread_create(&id1, NULL, (void *(*)(void *))server_dot_product_triplet_generation, (void*)&s_t);  
+    pthread_create(&id2, NULL,(void *(*)(void *))client_dot_product_triplet_generation, (void*)&c_t);  
+    pthread_join(id1, (void**)&s_t);  
+    pthread_join(id2, (void**)&c_t);  
     
     
-        
-    
-
-
+    std::cout<<"____ conv ok______________________"<<std::endl;
+    */
 
     sem_destroy(&sem1);  
     sem_destroy(&sem2);  

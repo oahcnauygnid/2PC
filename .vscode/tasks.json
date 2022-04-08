@@ -9,11 +9,12 @@
                 "-fconcepts",
                 "-g",
                 "${file}",
-                "-L'/usr/local/lib'",
-                "-lseal-3.7",
                 "-lpthread",
+                "-I/usr/local/include",
+                "-L/usr/local/lib",
+                "-lseal-3.7",
                 "-o",
-                "${workspaceRoot}/bin/${fileBasenameNoExtension}"
+                "${workspaceRoot}/bin/${fileBasenameNoExtension}",
             ],
             "options": {
                 "cwd": "${workspaceRoot}"

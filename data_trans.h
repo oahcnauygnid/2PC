@@ -128,10 +128,15 @@ float input[28][28] = {{  0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   0.,   
             0.,   0.,   0.,   0.,   0.,   0.}
         };
 
-float con1_input_extend[25][496];
-float con1_xc_extend[25][496];
-float con1_xs_extend[25][496];
-float con2_input_extend[400][64];
+double con1_input_extend[25][496];
+double con1_xc_extend[25][496];
+double con1_xs_extend[25][496];
+double con1_yc_extend[16][496];
+double con1_ys_extend[16][496];
+double con2_input_extend[400][64];
+
+size_t conv1_extend_dims[]={25,496};
+size_t conv1_out_dims[]={16,496};
 
 void get_double_params(std::string model_path) {
          
@@ -146,40 +151,40 @@ void get_double_params(std::string model_path) {
                 for (size_t i1 = 0; i1 < 1; i1++)
                     for (size_t i2 = 0; i2 < 5; i2++)
                         for (size_t i3 = 0; i3 < 5; i3++)
-                            con1_0_weight[i0][i1][i2][i3] = data[i0][i1][i2][i3].item().toFloat();
+                            con1_0_weight[i0][i1][i2][i3] = data[i0][i1][i2][i3].item().toDouble();
             break;
         case 1:
             for (size_t i0 = 0; i0 < 16; i0++)
-                con1_0_bias[i0] = data[i0].item().toFloat();
+                con1_0_bias[i0] = data[i0].item().toDouble();
             break;
         case 2:
             for (size_t i0 = 0; i0 < 16; i0++)
                 for (size_t i1 = 0; i1 < 16; i1++)
                     for (size_t i2 = 0; i2 < 5; i2++)
                         for (size_t i3 = 0; i3 < 5; i3++)
-                            con2_0_weight[i0][i1][i2][i3] = data[i0][i1][i2][i3].item().toFloat();
+                            con2_0_weight[i0][i1][i2][i3] = data[i0][i1][i2][i3].item().toDouble();
             break;
         case 3:
             for (size_t i0 = 0; i0 < 16; i0++)
-                    con2_0_bias[i0] = data[i0].item().toFloat();
+                    con2_0_bias[i0] = data[i0].item().toDouble();
             break;
         case 4:
             for (size_t i0 = 0; i0 < 100; i0++)
                 for (size_t i1 = 0; i1 < 256; i1++)
-                    fc1_weight[i0][i1] = data[i0][i1].item().toFloat();
+                    fc1_weight[i0][i1] = data[i0][i1].item().toDouble();
             break;
         case 5:
             for (size_t i0 = 0; i0 < 100; i0++)
-                fc1_bias[i0] = data[i0].item().toFloat();
+                fc1_bias[i0] = data[i0].item().toDouble();
             break;
         case 6:
             for (size_t i0 = 0; i0 < 10; i0++)
                 for (size_t i1 = 0; i1 < 100; i1++)
-                    fc1_weight[i0][i1] = data[i0][i1].item().toFloat();
+                    fc1_weight[i0][i1] = data[i0][i1].item().toDouble();
             break;
         case 7:
             for (size_t i0 = 0; i0 < 10; i0++)
-                fc1_bias[i0] = data[i0].item().toFloat();
+                fc1_bias[i0] = data[i0].item().toDouble();
             break;
         default:
             break;
@@ -188,13 +193,6 @@ void get_double_params(std::string model_path) {
     }
 }
 
-void get_rand_params() {
-    for (size_t i = 0; i < 25; i++){
-        for (size_t j = 0; j < 496; j++){
-            con1_xc_extend[i][j] = rand()/(RAND_MAX+0.0);
-        }
-    }
-}
 
 void conv1_input_to_mult(float input[][28]) {
     for (size_t j = 0; j < 496; j++){

@@ -62,7 +62,8 @@
         "unordered_set": "cpp",
         "iterator": "cpp",
         "map": "cpp",
-        "set": "cpp"
+        "set": "cpp",
+        "*.inc": "cpp"
     }
     
 }

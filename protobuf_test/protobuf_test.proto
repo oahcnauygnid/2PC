@@ -1,0 +1,6 @@
+syntax = "proto3";
+package protobuf_test;
+
+message Protobuf_test{
+    repeated double num = 1;
+}
